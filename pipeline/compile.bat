@@ -1,64 +1,58 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
-:: ── Environment (adjust these if paths differ) ────────────────
 set TAFJ_HOME=C:\R25\TAFJ
 set BNK_HOME=C:\R25\bnk
-set T24_LIB=%BNK_HOME%\t24lib
 set T24_LOCAL=%BNK_HOME%\local
-set JAVA_HOME=C:\R25\TAFJ\eclipse\jre
+set JARS_DIR=%TAFJ_HOME%\data\tafj\jars
 
-:: ── Build output ───────────────────────────────────────────────
-set BUILD_DIR=%TEMP%\tafj-build-%RANDOM%
-set BP_DIR=%~dp0..\bp
+pushd %~dp0..\bp
+set BP_DIR=%CD%
+popd
 
 echo.
-echo =^> Starting T24 BASIC compilation
-echo =^> Source  : %BP_DIR%
-echo =^> t24lib  : %T24_LIB%
-echo =^> Output  : %T24_LOCAL%
+echo =^> T24 BASIC Compilation
+echo =^> Source : %BP_DIR%
+echo =^> Jars   : %JARS_DIR%
 echo.
 
 if not exist "%T24_LOCAL%" mkdir "%T24_LOCAL%"
-if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
-:: Build classpath from t24lib JARs + TAFJClient
-set CLASSPATH=%TAFJ_HOME%\lib\TAFJClient.jar
-for %%J in ("%T24_LIB%\*.jar") do set CLASSPATH=!CLASSPATH!;%%J
-
-:: Compile each .b file found in bp/
+rem Compile each .b file - tCompile reads all config from tafj.properties
 set COMPILED=0
-for %%F in ("%BP_DIR%\*.b") do (
+set FAILED=0
+for %%F in (%BP_DIR%\*.b) do (
     echo    Compiling: %%~nxF
-    call "%TAFJ_HOME%\bin\tCompile.bat" ^
-        -tafj "%TAFJ_HOME%" ^
-        -classpath "%CLASSPATH%" ^
-        -d "%BUILD_DIR%" ^
-        "%%F"
+    call "C:\R25\TAFJ\bin\tCompile.bat" "%%F"
     if errorlevel 1 (
-        echo ERROR: Failed to compile %%~nxF
+        echo    ERROR: %%~nxF
+        set /a FAILED+=1
+    ) else (
+        set /a COMPILED+=1
+    )
+)
+
+if !COMPILED!==0 (
+    if !FAILED!==0 (
+        echo No .b files found in %BP_DIR%
+        exit /b 1
+    ) else (
+        echo All files failed to compile
         exit /b 1
     )
-    set /a COMPILED+=1
 )
 
-if %COMPILED%==0 (
-    echo No .b files found in %BP_DIR%
-    exit /b 1
-)
-
-:: Package all compiled classes into one JAR named after the repo
+rem Copy produced component JARs to bnk/local for deployment
 echo.
-echo =^> Packaging into local-bp.jar
-jar cf "%T24_LOCAL%\local-bp.jar" -C "%BUILD_DIR%" .
-if errorlevel 1 (
-    echo ERROR: JAR packaging failed
-    exit /b 1
+echo =^> Copying component JARs to %T24_LOCAL%
+set COPIED=0
+for %%J in (%JARS_DIR%\*.jar) do (
+    copy /y "%%J" "%T24_LOCAL%\" >nul
+    echo    Copied: %%~nxJ
+    set /a COPIED+=1
 )
 
-echo =^> Compiled %COMPILED% file(s) successfully
-echo =^> JAR: %T24_LOCAL%\local-bp.jar
-
-:: Cleanup
-rmdir /s /q "%BUILD_DIR%"
+echo.
+echo =^> Done: !COMPILED! compiled, !FAILED! failed, !COPIED! jar(s) staged to %T24_LOCAL%
+if !FAILED! GTR 0 exit /b 1
 endlocal

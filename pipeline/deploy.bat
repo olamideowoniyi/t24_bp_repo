@@ -1,45 +1,43 @@
 @echo off
 setlocal
 
-:: ── Environment ───────────────────────────────────────────────
 set JBOSS_HOME=C:\R25\jboss-eap-8.1
 set BNK_HOME=C:\R25\bnk
 set T24_LOCAL=%BNK_HOME%\local
 set MODULE_XML=%JBOSS_HOME%\modules\com\temenos\t24\main\module.xml
-set JAR_NAME=local-bp.jar
 
 echo.
-echo =^> Deploying %JAR_NAME%
+echo =^> Deploying JARs from %T24_LOCAL%
 
-:: 1. Verify JAR was produced
-if not exist "%T24_LOCAL%\%JAR_NAME%" (
-    echo ERROR: %T24_LOCAL%\%JAR_NAME% not found. Compile step may have failed.
+if not exist "%T24_LOCAL%" (
+    echo ERROR: %T24_LOCAL% does not exist
     exit /b 1
 )
-echo    JAR found: %T24_LOCAL%\%JAR_NAME%
 
-:: 2. Add to module.xml if not already there
-findstr /c:"%JAR_NAME%" "%MODULE_XML%" >nul 2>&1
-if errorlevel 1 (
-    echo    Adding %JAR_NAME% to module.xml...
-    powershell -Command ^
-        "(Get-Content '%MODULE_XML%') -replace '</resources>', ^
-        '  <resource-root path=""./local/%JAR_NAME%"" />^
+rem Register any new JARs in module.xml
+set REGISTERED=0
+for %%J in ("%T24_LOCAL%\*.jar") do (
+    findstr /c:"%%~nxJ" "%MODULE_XML%" >nul 2>&1
+    if errorlevel 1 (
+        echo    Registering %%~nxJ in module.xml...
+        powershell -Command "(Get-Content '%MODULE_XML%') -replace '</resources>', '  <resource-root path=""./local/%%~nxJ"" />^
   </resources>' | Set-Content '%MODULE_XML%'"
-    echo    module.xml updated
-) else (
-    echo    Already in module.xml, skipping
+        set /a REGISTERED+=1
+    ) else (
+        echo    Already registered: %%~nxJ
+    )
 )
 
-:: 3. Reload JBoss if it is running
+echo    %REGISTERED% new entry(s) added to module.xml
+
+rem Reload JBoss if running
 echo.
 echo =^> Checking JBoss state...
 "%JBOSS_HOME%\bin\jboss-cli.bat" --connect --command=":read-attribute(name=server-state)" >nul 2>&1
 if errorlevel 1 (
-    echo    JBoss is not running - skipping reload
-    echo    Start JBoss and the new JAR will be picked up automatically
+    echo    JBoss not running - JARs will be picked up on next start
 ) else (
-    echo    JBoss is running - reloading...
+    echo    JBoss running - reloading...
     "%JBOSS_HOME%\bin\jboss-cli.bat" --connect --command=":reload"
     echo    Reload triggered
 )
