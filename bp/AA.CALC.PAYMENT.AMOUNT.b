@@ -15,7 +15,7 @@
 $PACKAGE AA.MarketingCatalogue
 SUBROUTINE AA.CALC.PAYMENT.AMOUNT(Product, PrincipalAmount, ArrCcy, StartDate, OutDetails)
 
-*** <region name= Program Description>
+*** <region name= Program Description>..
 ***
 * Program Description
 * Nofile Enquiry routine to return the installment amount and total payment amount to be paid
