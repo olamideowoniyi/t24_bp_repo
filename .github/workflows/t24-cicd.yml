@@ -1,0 +1,29 @@
+name: T24 Local BP - Compile and Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bp/**'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type YES to deploy manually'
+        required: true
+        default: 'YES'
+
+jobs:
+  compile-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile BP files with tCompile
+        shell: cmd
+        run: pipeline\compile.bat
+
+      - name: Deploy JARs to bnk/local
+        shell: cmd
+        run: pipeline\deploy.bat
