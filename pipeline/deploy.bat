@@ -5,6 +5,7 @@ set JBOSS_HOME=C:\R25\jboss-eap-8.1
 set BNK_HOME=C:\R25\bnk
 set T24_LOCAL=%BNK_HOME%\local
 set MODULE_XML=%JBOSS_HOME%\modules\com\temenos\t24\main\module.xml
+set SCRIPT_DIR=%~dp0
 
 echo.
 echo =^> Deploying JARs from %T24_LOCAL%
@@ -14,31 +15,20 @@ if not exist "%T24_LOCAL%" (
     exit /b 1
 )
 
-rem Register any new JARs in module.xml
-set REGISTERED=0
+rem Register any new JARs in module.xml via PowerShell script
 for %%J in ("%T24_LOCAL%\*.jar") do (
-    findstr /c:"%%~nxJ" "%MODULE_XML%" >nul 2>&1
-    if errorlevel 1 (
-        echo    Registering %%~nxJ in module.xml...
-        powershell -Command "(Get-Content '%MODULE_XML%') -replace '</resources>', '  <resource-root path=""./local/%%~nxJ"" />^
-  </resources>' | Set-Content '%MODULE_XML%'"
-        set /a REGISTERED+=1
-    ) else (
-        echo    Already registered: %%~nxJ
-    )
+    powershell -ExecutionPolicy Bypass -File "%SCRIPT_DIR%update-module.ps1" -ModuleXml "%MODULE_XML%" -JarName "%%~nxJ"
 )
 
-echo    %REGISTERED% new entry(s) added to module.xml
-
-rem Reload JBoss if running
+rem Check JBoss management port with proper connection test
 echo.
 echo =^> Checking JBoss state...
-"%JBOSS_HOME%\bin\jboss-cli.bat" --connect --command=":read-attribute(name=server-state)" >nul 2>&1
+powershell -Command "try { $t=New-Object Net.Sockets.TcpClient; $t.Connect('localhost',9990); $t.Close(); exit 0 } catch { exit 1 }" >nul 2>&1
 if errorlevel 1 (
     echo    JBoss not running - JARs will be picked up on next start
 ) else (
     echo    JBoss running - reloading...
-    "%JBOSS_HOME%\bin\jboss-cli.bat" --connect --command=":reload"
+    echo. | "%JBOSS_HOME%\bin\jboss-cli.bat" --connect --command=":reload" 2>&1
     echo    Reload triggered
 )
 
