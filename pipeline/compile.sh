@@ -15,57 +15,64 @@ while IFS='=' read -r key value; do
     export "$key=$value"
 done < "$ENV_CONFIG"
 
-T24_BP="$BNK_HOME/T24_BP"
 JARS_DIR="$TAFJ_HOME/data/tafj/jars"
-SRC_DIR="$SCRIPT_DIR/../bp/src"
+BP_ROOT="$SCRIPT_DIR/../bp"
+BP_ROOT="$(cd "$BP_ROOT" && pwd)"
 
 echo ""
 echo "=> T24 BASIC Compilation [ENV: $ENV]"
-echo "=> Source   : $SRC_DIR"
-echo "=> T24_BP   : $T24_BP"
-echo "=> TAFJ     : $TAFJ_HOME"
+echo "=> Repo bp/  : $BP_ROOT"
+echo "=> BNK_HOME  : $BNK_HOME"
+echo "=> TAFJ      : $TAFJ_HOME"
 echo ""
 
-if [ ! -d "$T24_BP" ]; then
-    echo "ERROR: T24_BP not found: $T24_BP"
-    exit 1
-fi
+# Walk bp/ recursively - each subfolder mirrors BNK_HOME
+# e.g. bp/T24_BP/AA.X.b    -> $BNK_HOME/T24_BP/AA.X.b
+#      bp/UD/AUTH.BP/X.b   -> $BNK_HOME/UD/AUTH.BP/X.b
 
-# Sync .b files to T24_BP so tCompile can resolve INSERT references
-echo "=> Syncing source files to T24_BP..."
-SYNCED=0
-for F in "$SRC_DIR"/*.b; do
-    [ -f "$F" ] || { echo "   No .b files found in $SRC_DIR"; exit 1; }
-    cp -f "$F" "$T24_BP/"
-    echo "   Synced: $(basename "$F")"
-    SYNCED=$((SYNCED + 1))
-done
-
-echo ""
-echo "=> Compiling..."
 COMPILED=0
 FAILED=0
-for F in "$SRC_DIR"/*.b; do
-    [ -f "$F" ] || continue
-    BN="$(basename "$F")"
-    echo "   $BN"
-    if "$TAFJ_HOME/bin/tCompile" "$T24_BP/$BN"; then
+SYNCED=0
+
+while IFS= read -r -d '' F; do
+    # Relative path from BP_ROOT
+    REL="${F#$BP_ROOT/}"
+    TARGET="$BNK_HOME/$REL"
+    TARGET_DIR="$(dirname "$TARGET")"
+
+    # Create target dir if missing
+    mkdir -p "$TARGET_DIR"
+
+    # Sync to BNK_HOME location
+    cp -f "$F" "$TARGET"
+    echo "   Synced: $REL"
+    SYNCED=$((SYNCED + 1))
+
+    # Compile from the BNK_HOME location
+    echo "   Compiling: $REL"
+    if "$TAFJ_HOME/bin/tCompile" "$TARGET"; then
         COMPILED=$((COMPILED + 1))
     else
-        echo "   ERROR compiling $BN"
+        echo "   ERROR: $REL"
         FAILED=$((FAILED + 1))
     fi
-done
+    echo ""
+done < <(find "$BP_ROOT" -name "*.b" -print0)
+
+if [ "$SYNCED" -eq 0 ]; then
+    echo "No .b files found under $BP_ROOT"
+    exit 1
+fi
 
 echo ""
 if [ "$FAILED" -gt 0 ]; then
-    echo "=> Compile result: $COMPILED ok, $FAILED FAILED - aborting"
+    echo "=> Result: $COMPILED compiled, $FAILED FAILED"
     exit 1
 fi
 
-echo "=> Compile result: $COMPILED compiled, 0 failed"
+echo "=> Result: $COMPILED compiled, 0 failed"
 echo ""
-echo "=> JARs produced in $JARS_DIR:"
+echo "=> JARs produced:"
 for J in "$JARS_DIR"/*.jar; do
     [ -f "$J" ] && echo "   $(basename "$J")"
 done
