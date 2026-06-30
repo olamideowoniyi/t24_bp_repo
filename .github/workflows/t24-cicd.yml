@@ -19,7 +19,7 @@ on:
 
 jobs:
   compile-and-deploy:
-    runs-on: [self-hosted, "${{ github.event.inputs.environment || github.ref_name }}"]
+    runs-on: self-hosted
 
     env:
       ENV: ${{ github.event.inputs.environment || github.ref_name }}

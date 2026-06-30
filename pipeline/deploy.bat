@@ -35,3 +35,4 @@ if errorlevel 1 (
 echo.
 echo =^> Deploy complete
 endlocal
+exit /b 0
