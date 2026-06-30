@@ -1,29 +1,44 @@
-name: T24 Local BP - Compile and Deploy
+name: T24 BP - Compile and Deploy
 
 on:
   push:
-    branches: [main]
+    branches:
+      - dev
+      - uat
+      - prod
     paths:
       - 'bp/**'
   workflow_dispatch:
     inputs:
-      confirm:
-        description: 'Type YES to deploy manually'
+      environment:
+        description: 'Target environment'
         required: true
-        default: 'YES'
+        default: 'dev'
+        type: choice
+        options: [dev, uat, prod]
 
 jobs:
   compile-and-deploy:
-    runs-on: self-hosted
+    runs-on: [self-hosted, "${{ github.event.inputs.environment || github.ref_name }}"]
+
+    env:
+      ENV: ${{ github.event.inputs.environment || github.ref_name }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compile BP files with tCompile
+      - name: Compile and Deploy (Windows)
+        if: runner.os == 'Windows'
         shell: cmd
-        run: pipeline\compile.bat
+        run: |
+          pipeline\compile.bat
+          pipeline\deploy.bat
 
-      - name: Deploy JARs to bnk/local
-        shell: cmd
-        run: pipeline\deploy.bat
+      - name: Compile and Deploy (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          chmod +x pipeline/compile.sh pipeline/deploy.sh
+          pipeline/compile.sh
+          pipeline/deploy.sh
