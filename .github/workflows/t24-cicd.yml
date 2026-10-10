@@ -16,6 +16,18 @@ on:
         default: 'dev'
         type: choice
         options: [dev, uat, prod]
+      deploy_to_jboss:
+        description: 'Deploy to JBoss (config = use the environment setting)'
+        required: true
+        default: 'config'
+        type: choice
+        options: [config, 'Y', 'N']
+      jboss_reload:
+        description: 'Reload JBoss after deploy (config = use the environment setting)'
+        required: true
+        default: 'config'
+        type: choice
+        options: [config, 'Y', 'N']
 
 jobs:
   compile-and-deploy:
@@ -23,6 +35,8 @@ jobs:
 
     env:
       ENV: ${{ github.event.inputs.environment || github.ref_name }}
+      DEPLOY_OVERRIDE: ${{ github.event.inputs.deploy_to_jboss }}
+      RELOAD_OVERRIDE: ${{ github.event.inputs.jboss_reload }}
 
     steps:
       - name: Checkout

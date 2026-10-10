@@ -21,6 +21,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Last commit successfully deployed to this environment (written by deploy.sh)
 MARKER="$BNK_HOME/.cicd/last_deployed_$ENV.txt"
 
+# Jars updated by this compile - read by deploy.sh
+WORK="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+JAR_LIST="$WORK/t24cicd_jars.txt"
+STAMP="$WORK/t24cicd_compile_start.txt"
+rm -f "$JAR_LIST" "$STAMP"
+
 echo ""
 echo "=> T24 BASIC Compilation [ENV: $ENV]"
 echo "=> Repo      : $REPO_ROOT"
@@ -80,6 +86,7 @@ done
 
 if [ "${#CHANGED[@]}" -eq 0 ]; then
     echo "   No changed files under bp/ - nothing to compile"
+    : > "$JAR_LIST"
     exit 0
 fi
 echo ""
@@ -108,6 +115,8 @@ compile_list() {
 
 # New routines come with their .component - compile components first so the
 # component jar exists, then the routines (TAFJ updates the jar for each class).
+touch "$STAMP"
+sleep 1   # jars written by this compile must be strictly newer than the stamp
 compile_list "component" "${COMPONENTS[@]}"
 compile_list "routine" "${ROUTINES[@]}"
 
@@ -118,10 +127,15 @@ if [ "$FAILED" -gt 0 ]; then
 fi
 
 echo "=> Result: ${#COMPONENTS[@]} component(s), ${#ROUTINES[@]} routine(s) compiled, 0 failed"
+
+# Record which jars this compile created or updated (newer than the start stamp)
+if [ "$DRY_RUN" = "1" ]; then
+    : > "$JAR_LIST"
+else
+    find "$JARS_DIR" -maxdepth 1 -name '*.jar' -newer "$STAMP" -printf '%f\n' > "$JAR_LIST"
+fi
 echo ""
-echo "=> JARs in $JARS_DIR:"
-for J in "$JARS_DIR"/*.jar; do
-    [ -f "$J" ] && echo "   $(basename "$J")"
-done
+echo "=> JARs updated by this compile:"
+sed 's/^/   /' "$JAR_LIST"
 
 exit 0

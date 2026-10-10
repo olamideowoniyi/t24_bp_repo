@@ -7,7 +7,7 @@ if not exist "%ENV_CONFIG%" (
     echo ERROR: Config not found: %ENV_CONFIG%
     exit /b 1
 )
-for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_CONFIG%") do set %%A=%%B
+for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_CONFIG%") do set %%A=%%B
 
 set JARS_DIR=%TAFJ_HOME%\data\tafj\jars
 
@@ -24,7 +24,10 @@ set CHANGES=%WORK%\t24cicd_changes.txt
 set DELETED=%WORK%\t24cicd_deleted.txt
 set COMP_LIST=%WORK%\t24cicd_components.txt
 set B_LIST=%WORK%\t24cicd_routines.txt
-for %%T in ("%CHANGES%" "%DELETED%" "%COMP_LIST%" "%B_LIST%") do if exist %%T del %%T
+rem Jars updated by this compile - read by deploy.bat
+set JAR_LIST=%WORK%\t24cicd_jars.txt
+set STAMP=%WORK%\t24cicd_compile_start.txt
+for %%T in ("%CHANGES%" "%DELETED%" "%COMP_LIST%" "%B_LIST%" "%JAR_LIST%" "%STAMP%") do if exist %%T del %%T
 
 echo.
 echo =^> T24 BASIC Compilation [ENV: %ENV%]
@@ -109,6 +112,7 @@ for /f "usebackq delims=" %%D in ("%DELETED%") do echo    NOTE: deleted in repo,
 
 if !SYNCED!==0 (
     echo    No changed files under bp\ - nothing to compile
+    type nul > "%JAR_LIST%"
     endlocal
     exit /b 0
 )
@@ -122,6 +126,7 @@ if !FAILED! GTR 0 (
 
 rem New routines come with their .component - compile components first so the
 rem component jar exists, then the routines (TAFJ updates the jar for each class).
+type nul > "%STAMP%"
 call :compile_list "%COMP_LIST%" "component"
 call :compile_list "%B_LIST%" "routine"
 
@@ -132,9 +137,15 @@ if !FAILED! GTR 0 (
 )
 
 echo =^> Result: !NCOMP! component^(s^), !NROUT! routine^(s^) compiled, 0 failed
+
+rem Record which jars this compile created or updated (newer than the start stamp)
+type nul > "%JAR_LIST%"
+if not "%DRY_RUN%"=="1" (
+    powershell -NoProfile -Command "$s = (Get-Item '%STAMP%').LastWriteTime; Get-ChildItem '%JARS_DIR%' -Filter *.jar -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -ge $s } | ForEach-Object { $_.Name } | Set-Content '%JAR_LIST%'"
+)
 echo.
-echo =^> JARs in %JARS_DIR%:
-for %%J in ("%JARS_DIR%\*.jar") do echo    %%~nxJ
+echo =^> JARs updated by this compile:
+for /f "usebackq delims=" %%J in ("%JAR_LIST%") do echo    %%J
 
 endlocal
 exit /b 0
