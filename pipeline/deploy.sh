@@ -81,4 +81,9 @@ fi
 
 echo ""
 echo "=> Deploy complete - $DEPLOYED jar(s) deployed"
+
+# Record this commit as deployed so the next run only compiles newer changes
+mkdir -p "$BNK_HOME/.cicd"
+git -C "$SCRIPT_DIR/.." rev-parse HEAD > "$BNK_HOME/.cicd/last_deployed_$ENV.txt"
+echo "=> Recorded deployed commit for $ENV"
 exit 0

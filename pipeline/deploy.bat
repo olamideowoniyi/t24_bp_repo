@@ -65,5 +65,14 @@ if errorlevel 1 (
 
 echo.
 echo =^> Deploy complete - %DEPLOYED% jar(s) deployed
+
+rem Record this commit as deployed so the next run only compiles newer changes
+if not exist "%BNK_HOME%\.cicd" mkdir "%BNK_HOME%\.cicd"
+git -C "%~dp0.." rev-parse HEAD > "%BNK_HOME%\.cicd\last_deployed_%ENV%.txt"
+if errorlevel 1 (
+    echo ERROR: could not record deployed commit
+    exit /b 1
+)
+echo =^> Recorded deployed commit for %ENV%
 endlocal
 exit /b 0

@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, needed to work out what changed
 
       - name: Compile (Windows)
         if: runner.os == 'Windows'
