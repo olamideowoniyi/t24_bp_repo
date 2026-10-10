@@ -32,9 +32,9 @@ if not exist "%JBOSS_MODULE_LOCAL%" (
 
 rem Check if JBOSS_MODULE_LOCAL is a symlink/junction - if so, skip the copy
 set LINKED=0
-for /f "tokens=*" %%L in ('powershell -NoProfile -Command "(Get-Item \"%JBOSS_MODULE_LOCAL%\").LinkType" 2^>nul') do (
-    if not "%%L"=="" set LINKED=1
-)
+powershell -NoProfile -Command "if ((Get-Item '%JBOSS_MODULE_LOCAL%').LinkType) { exit 1 } else { exit 0 }" >nul 2>&1
+if errorlevel 1 set LINKED=1
+
 if !LINKED!==1 echo    Note: JBoss local is a linked folder - skipping copy
 
 echo =^> Deploying JARs...
