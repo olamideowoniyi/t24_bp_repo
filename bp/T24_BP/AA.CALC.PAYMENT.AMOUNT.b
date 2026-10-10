@@ -143,7 +143,7 @@ RETURN
 *** </region>
 *------------------------------------------------------------------------------------------------------------------------------------------------------*
 *** <region name= FetchProductConditions>
-*** <desc>Get the Conditions of the Properties</desc>
+*** <desc>Get the Conditions of the Properties check</desc> 10/10/2026 - CBL-001 - <your name> - <what you changed>
 FetchProductConditions:
     
     Term = ''
