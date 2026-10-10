@@ -19,7 +19,7 @@ on:
 
 jobs:
   compile-and-deploy:
-    runs-on: [self-hosted, "${{ github.event.inputs.environment || github.ref_name }}"]
+    runs-on: self-hosted
 
     env:
       ENV: ${{ github.event.inputs.environment || github.ref_name }}
@@ -28,17 +28,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compile and Deploy (Windows)
+      - name: Compile (Windows)
         if: runner.os == 'Windows'
         shell: cmd
-        run: |
-          pipeline\compile.bat
-          pipeline\deploy.bat
+        run: call pipeline\compile.bat
 
-      - name: Compile and Deploy (Linux)
+      - name: Deploy (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: call pipeline\deploy.bat
+
+      - name: Compile (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           chmod +x pipeline/compile.sh pipeline/deploy.sh
           pipeline/compile.sh
-          pipeline/deploy.sh
+
+      - name: Deploy (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: pipeline/deploy.sh

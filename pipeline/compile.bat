@@ -1,64 +1,81 @@
 @echo off
 setlocal enabledelayedexpansion
 
-rem Load environment config
 set ENV_CONFIG=%~dp0env\%ENV%.conf
 if "%ENV%"=="" set ENV_CONFIG=%~dp0env\dev.conf
 if not exist "%ENV_CONFIG%" (
     echo ERROR: Config not found: %ENV_CONFIG%
     exit /b 1
 )
-for /f "usebackq tokens=1,2 delims==" %%A in ("%ENV_CONFIG%") do set %%A=%%B
+for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_CONFIG%") do set %%A=%%B
 
-set T24_LOCAL=%BNK_HOME%\local
 set JARS_DIR=%TAFJ_HOME%\data\tafj\jars
 
 pushd %~dp0..\bp
-set BP_DIR=%CD%
+set BP_ROOT=%CD%
 popd
 
 echo.
 echo =^> T24 BASIC Compilation [ENV: %ENV%]
-echo =^> Source : %BP_DIR%
-echo =^> TAFJ   : %TAFJ_HOME%
-echo =^> Output : %T24_LOCAL%
+echo =^> Repo bp\  : %BP_ROOT%
+echo =^> BNK_HOME  : %BNK_HOME%
+echo =^> TAFJ      : %TAFJ_HOME%
 echo.
 
-if not exist "%T24_LOCAL%" mkdir "%T24_LOCAL%"
+rem Walk bp\ recursively - each subfolder mirrors BNK_HOME
+rem e.g. bp\T24_BP\AA.X.b    -> BNK_HOME\T24_BP\AA.X.b
+rem      bp\UD\AUTH.BP\X.b   -> BNK_HOME\UD\AUTH.BP\X.b
 
 set COMPILED=0
 set FAILED=0
-for %%F in (%BP_DIR%\*.b) do (
-    echo    Compiling: %%~nxF
-    call "%TAFJ_HOME%\bin\tCompile.bat" "%%F"
+set SYNCED=0
+
+for /r "%BP_ROOT%" %%F in (*.b) do (
+    rem Get path of file relative to BP_ROOT
+    set "FULL=%%F"
+    set "REL=!FULL:%BP_ROOT%\=!"
+
+    rem Determine target folder on server (strip filename from REL)
+    for %%D in ("%%~dpF.") do set "TARGET_DIR=%BNK_HOME%\!REL!"
+    rem Remove the filename to get just the folder
+    set "TARGET_DIR=%BNK_HOME%\!REL!"
+    for %%X in ("!TARGET_DIR!") do set "TARGET_DIR=%%~dpX"
+
+    rem Create target dir if missing
+    if not exist "!TARGET_DIR!" mkdir "!TARGET_DIR!"
+
+    rem Sync file to BNK_HOME location
+    copy /y "%%F" "!TARGET_DIR!" >nul
+    echo    Synced: !REL!
+    set /a SYNCED+=1
+
+    rem Compile from the BNK_HOME location
+    set "SERVER_PATH=%BNK_HOME%\!REL!"
+    call "%TAFJ_HOME%\bin\tCompile.bat" "!SERVER_PATH!"
     if errorlevel 1 (
-        echo    ERROR: %%~nxF
+        echo    ERROR: !REL!
         set /a FAILED+=1
     ) else (
         set /a COMPILED+=1
     )
+    echo.
 )
 
-if !COMPILED!==0 (
-    if !FAILED!==0 (
-        echo No .b files found in %BP_DIR%
-        exit /b 1
-    ) else (
-        echo All files failed to compile
-        exit /b 1
-    )
+if !SYNCED!==0 (
+    echo No .b files found under %BP_ROOT%
+    exit /b 1
 )
 
 echo.
-echo =^> Copying JARs to %T24_LOCAL%
-set COPIED=0
-for %%J in (%JARS_DIR%\*.jar) do (
-    copy /y "%%J" "%T24_LOCAL%\" >nul
-    echo    Copied: %%~nxJ
-    set /a COPIED+=1
+if !FAILED! GTR 0 (
+    echo =^> Result: !COMPILED! compiled, !FAILED! FAILED
+    exit /b 1
 )
 
+echo =^> Result: !COMPILED! compiled, 0 failed
 echo.
-echo =^> Done: !COMPILED! compiled, !FAILED! failed, !COPIED! jar(s) ready
-if !FAILED! GTR 0 exit /b 1
+echo =^> JARs produced:
+for %%J in (%JARS_DIR%\*.jar) do echo    %%~nxJ
+
 endlocal
+exit /b 0

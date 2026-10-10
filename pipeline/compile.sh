@@ -10,55 +10,71 @@ if [ ! -f "$ENV_CONFIG" ]; then
     exit 1
 fi
 
-# Load config
 while IFS='=' read -r key value; do
     [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
     export "$key=$value"
 done < "$ENV_CONFIG"
 
-T24_LOCAL="$BNK_HOME/local"
 JARS_DIR="$TAFJ_HOME/data/tafj/jars"
-BP_DIR="$SCRIPT_DIR/../bp"
+BP_ROOT="$SCRIPT_DIR/../bp"
+BP_ROOT="$(cd "$BP_ROOT" && pwd)"
 
 echo ""
 echo "=> T24 BASIC Compilation [ENV: $ENV]"
-echo "=> Source : $BP_DIR"
-echo "=> TAFJ   : $TAFJ_HOME"
-echo "=> Output : $T24_LOCAL"
+echo "=> Repo bp/  : $BP_ROOT"
+echo "=> BNK_HOME  : $BNK_HOME"
+echo "=> TAFJ      : $TAFJ_HOME"
 echo ""
 
-mkdir -p "$T24_LOCAL"
+# Walk bp/ recursively - each subfolder mirrors BNK_HOME
+# e.g. bp/T24_BP/AA.X.b    -> $BNK_HOME/T24_BP/AA.X.b
+#      bp/UD/AUTH.BP/X.b   -> $BNK_HOME/UD/AUTH.BP/X.b
 
 COMPILED=0
 FAILED=0
+SYNCED=0
 
-for F in "$BP_DIR"/*.b; do
-    [ -f "$F" ] || { echo "No .b files found in $BP_DIR"; exit 1; }
-    echo "   Compiling: $(basename "$F")"
-    if "$TAFJ_HOME/bin/tCompile" "$F"; then
+while IFS= read -r -d '' F; do
+    # Relative path from BP_ROOT
+    REL="${F#$BP_ROOT/}"
+    TARGET="$BNK_HOME/$REL"
+    TARGET_DIR="$(dirname "$TARGET")"
+
+    # Create target dir if missing
+    mkdir -p "$TARGET_DIR"
+
+    # Sync to BNK_HOME location
+    cp -f "$F" "$TARGET"
+    echo "   Synced: $REL"
+    SYNCED=$((SYNCED + 1))
+
+    # Compile from the BNK_HOME location
+    echo "   Compiling: $REL"
+    if "$TAFJ_HOME/bin/tCompile" "$TARGET"; then
         COMPILED=$((COMPILED + 1))
     else
-        echo "   ERROR: $(basename "$F")"
+        echo "   ERROR: $REL"
         FAILED=$((FAILED + 1))
     fi
-done
+    echo ""
+done < <(find "$BP_ROOT" -name "*.b" -print0)
 
-if [ "$COMPILED" -eq 0 ] && [ "$FAILED" -eq 0 ]; then
-    echo "No .b files found in $BP_DIR"
+if [ "$SYNCED" -eq 0 ]; then
+    echo "No .b files found under $BP_ROOT"
     exit 1
 fi
 
 echo ""
-echo "=> Copying JARs to $T24_LOCAL"
-COPIED=0
+if [ "$FAILED" -gt 0 ]; then
+    echo "=> Result: $COMPILED compiled, $FAILED FAILED"
+    exit 1
+fi
+
+echo "=> Result: $COMPILED compiled, 0 failed"
+echo ""
+echo "=> JARs produced:"
 for J in "$JARS_DIR"/*.jar; do
-    [ -f "$J" ] || continue
-    cp -f "$J" "$T24_LOCAL/"
-    echo "   Copied: $(basename "$J")"
-    COPIED=$((COPIED + 1))
+    [ -f "$J" ] && echo "   $(basename "$J")"
 done
 
-echo ""
-echo "=> Done: $COMPILED compiled, $FAILED failed, $COPIED jar(s) ready"
-[ "$FAILED" -gt 0 ] && exit 1
 exit 0
